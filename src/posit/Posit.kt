@@ -1,5 +1,8 @@
 package posit
 
+import java.lang.Integer.max
+
+
 //32 bits
 public class Posit /*: Number()*/ {
     companion object {
@@ -11,26 +14,45 @@ public class Posit /*: Number()*/ {
         //endregion
 
         //region Posit structure
-        const val NBITS = 32
-        const val ES = 3
+        const val NBITS = 7
+        const val ES = 1
         //endregion
     }
 
     //Для целых чисел
     constructor(value: Int) {
         //Получаем экспоненту (для целых берем количество битов)
-        var exponent = bitsLength(value) - 1
+        var exponent = mostSignificantBitPosition(value) - 1
         //Regime - это масштабирование на 2^es. Получается, просто делим на левый сдвиг.
         var regimeK: Int = exponent / (1 shl ES)
+        exponent %= (1 shl ES)
 
         //Конструируем число.
         var regimeBits = regimeBits(regimeK)
+        //Длина режима - биты единиц и ноль или биты нулей и единица.
+        var regimeLen = if (regimeK >= 0) regimeK + 2 else -regimeK + 1
 
 
     }
 
+    //Возвращает представление битов режима
+    private fun regimeBits(runningK: Int): Int {
+        /* k-1 единиц и последний ноль, при положительном
+        * k нулей и последняя единица, при отрицательном */
+        return if (runningK > 0) {
+            ((1 shl (runningK + 1)) - 1) shl 1
+        } else {
+            /*получаем число вида 0..010...0. убираем ненужные нули, чтобы взять только режим
+            * -> 0..01*/
+            var mask = 1 shl (NBITS - ES)
+            mask = mask shr -runningK
+            mask shr leastSignificantBitPosition(mask)
+        }
+    }
+
+    //region Bit manipulation
     //возвращает позицию most significant bit
-    private fun bitsLength(value: Int): Int {
+    private fun mostSignificantBitPosition(value: Int): Int {
         var value = value
         var pos: Int = 0
         while (value != 0) {
@@ -40,16 +62,17 @@ public class Posit /*: Number()*/ {
         return pos
     }
 
-    //Возвращает представление битов режима
-    private fun regimeBits(runningK: Int): Int {
-        /* k-1 единиц и последний ноль, при положительном
-        * k нулей и последняя единица, при отрицательном */
-        return if (runningK > 0) {
-            1 shl (runningK + 1) - 1
-        } else {
-            1 shr -runningK
+    //Возвращает позицию least significant bit, но с обратной индексацией
+    fun leastSignificantBitPosition(value: Int): Int {
+        var mask = 1
+        var pos = 0
+        while (pos < NBITS - 1){
+            val newVal = mask or value
+            if (newVal == value)
+                break
+            mask = mask shl pos++
         }
+        return pos
     }
-
-
+    //endregion
 }
