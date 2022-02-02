@@ -32,7 +32,11 @@ public class Posit /*: Number()*/ {
         //Длина режима - биты единиц и ноль или биты нулей и единица.
         var regimeLen = if (regimeK >= 0) regimeK + 2 else -regimeK + 1
 
-
+        var fractionLen = NBITS - 1 - regimeLen - ES
+        //Удаляем лишние нули
+        var fractionBits = value shl (leastSignificantBitPosition(value))
+        /*Удаляем спрятанный бит 1. Маска 1<<(frac_len)-1 - 1 */
+        fractionBits = fractionBits and (1 shl (mostSignificantBitPosition(fractionBits)-1)) -1
     }
 
     //Возвращает представление битов режима
@@ -52,7 +56,7 @@ public class Posit /*: Number()*/ {
 
     //region Bit manipulation
     //возвращает позицию most significant bit
-    private fun mostSignificantBitPosition(value: Int): Int {
+     fun mostSignificantBitPosition(value: Int): Int {
         var value = value
         var pos: Int = 0
         while (value != 0) {
@@ -68,8 +72,11 @@ public class Posit /*: Number()*/ {
         var pos = 0
         while (pos < NBITS - 1){
             val newVal = mask or value
-            if (newVal == value)
+            if (newVal == value){
+                if (pos == 0)
+                    pos++
                 break
+            }
             mask = mask shl pos++
         }
         return pos
