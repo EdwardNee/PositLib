@@ -1,8 +1,11 @@
 package posit
 
 import java.lang.Float.floatToIntBits
+import kotlin.math.exp
 import kotlin.math.pow
 
+
+data class RegimeInfo(val regimeLen: Int, val regimeK: Int)
 
 //32 bits
 public class Posit /*: Number()*/ {
@@ -34,6 +37,7 @@ public class Posit /*: Number()*/ {
     }
 
     constructor(value: Float) {
+        println(value)
         var signBit: Byte = 0
         var exponent = 0
         var fractionBits = 0
@@ -45,43 +49,44 @@ public class Posit /*: Number()*/ {
             return
         }
 
+
         val intRepresentation = floatToIntBits(value)
         signBit = signBit(value)//if ((intRepresentation.toUInt() and INFINITY) == 0U) 0 else 1
 
         //Сдвигаем и вычитаем биас.
         exponent = ((intRepresentation and ((1 shl 31) - 1)) shr 23) - 127
+//        exponent = intRepresentation and (((intRepresentation shl 1) shr 24) - 127)
 
         //Добавляю скрытый бит к маске float fraction
         fractionBits = (1 shl 23) or (intRepresentation and ((1 shl 23) - 1))
-
+//        print("F ${exponent} \n")
         makePositValue(fractionBits, signBit, exponent)
     }
 
     fun x2p(value: Float) {
-        println(value)
         var bigger: Boolean = false
         USEED = 1 shl (1 shl ES)//2^2^es
-        var value: Float = value.toFloat()
+        var `val`: Float = value.toFloat()
 
         var expCounter = 2f.pow(ES - 1)
         var positVal = 0f
         var iter = 1
         //Northeast quadrant
-        if (value >= 1) {
+        if (`val` >= 1) {
             bigger = true
             positVal = 1f
             iter = 2
-            while (value >= USEED && iter < NBITS) {
+            while (`val` >= USEED && iter < NBITS) {
                 positVal = 2 * positVal + 1
-                value /= USEED
+                `val` /= USEED
                 ++iter
             }
             positVal *= 2
             iter = 2
         }
         else{//Southeast quadrant
-            while (value < 1 && iter <= NBITS){
-                value *= USEED
+            while (`val` < 1 && iter <= NBITS){
+                `val` *= USEED
                 ++iter
             }
             if (iter >= NBITS){
@@ -95,20 +100,20 @@ public class Posit /*: Number()*/ {
         //Extract exponent bits
         while (expCounter > 1f/2f && iter <= NBITS){
             positVal *= 2
-            if (value >= 2f.pow(expCounter)){
-                value /= 2f.pow(expCounter)
+            if (`val` >= 2f.pow(expCounter)){
+                `val` /= 2f.pow(expCounter)
                 positVal++
             }
             expCounter /= 2f
             iter++
         }
-        value--
+        `val`--
 
         //Extract fraction bits
-        while (value > 0 && iter <= NBITS){
-            value *= 2
-            positVal = 2 * positVal + value.toInt()
-            value -= value.toInt()
+        while (`val` > 0 && iter <= NBITS){
+            `val` *= 2
+            positVal = 2 * positVal + `val`.toInt()
+            `val` -= `val`.toInt()
             ++iter
         }
 
@@ -126,25 +131,48 @@ public class Posit /*: Number()*/ {
         }
         else{
             //Count the regime bits, N - 1 - ES - regimeLen
-            resultPositVal = resultPositVal shr 1
+            //can count exp, can count regime. fraction_len = N - 1 - explen - regimeLen
+//            resultPositVal = resultPositVal shr 1
             //resultPositVal consists of exp_bits and fraction bits
+            val ex = countExponent(value)
+            val regimeInfo = countRegime(signBit(value), ex)
+//            var fractionLen = NBITS - 1 -
         }
 
         if(iter == 0){
-            println("\t0 $resultPositVal ${resultPositVal.toString(2)}")
+            println("\t0^ $resultPositVal ${resultPositVal.toString(2)}")
         }
-        else if (value == 1f || value == 0f){
-            println("\tv ${resultPositVal - 1} ${(resultPositVal - 1).toString(2)}")
+        else if (`val` == 1f || `val` == 0f){
+            println("\tv^ ${resultPositVal - 1} ${(resultPositVal - 1).toString(2)}")
         }else{
-            println("\t+ ${resultPositVal + 1} ${(resultPositVal + 1).toString(2)}")
+            println("\t+^ ${resultPositVal + 1} ${(resultPositVal + 1).toString(2)}")
         }
+    }
+
+    private fun countExponent(value: Float): Int{
+        val intRepresentation = floatToIntBits(value)
+        var exponent = ((intRepresentation and ((1 shl 31) - 1)) shr 23) - 127
+        return exponent and ((1 shl ES) - 1)
+    }
+
+    private fun countRegime(sign: Byte, exponent: Int): RegimeInfo{
+        var regimeK: Int = exponent shr ES
+        //Конструируем число.
+        var regimeBits = regimeBits(sign, regimeK)
+        //Длина режима - биты единиц и ноль или биты нулей и единица.
+        var regimeLen = if (regimeK >= 0) regimeK + 2 else -regimeK + 1
+
+        return RegimeInfo(regimeLen, regimeK)
     }
 
     private fun makePositValue(value: Int, sign: Byte, exponent: Int) {
 
+//        print("EXP ${exponent}")
         //Regime - это масштабирование на 2^es. Получается, просто делим на левый сдвиг.
-        var regimeK: Int = exponent / (1 shl ES)
-        var exponent = exponent % (1 shl ES)
+        var regimeK: Int = exponent shr ES//(exponent) / (1 shl ES)
+//        print("exp ${exponent}  ${(1 shl ES)} ${(exponent) % (1 shl ES)}")
+//        print("exp ${exponent and (1 shl ES)} ${(1 shl ES)}")
+        var exponent = (exponent) and ((1 shl ES) - 1)
 
         //Конструируем число.
         var regimeBits = regimeBits(sign, regimeK)
@@ -153,7 +181,7 @@ public class Posit /*: Number()*/ {
         //fraction
         var fractionBits = fractionBits(sign, value, regimeLen)
 
-        println("Posit: $regimeLen $exponent $fractionBits")
+        println("Posit: r.$regimeLen e.$exponent f.$fractionBits")
 
         //Remained length of bits for exp and fraction
         var expFracBitsLen = NBITS - regimeLen - 1
@@ -187,12 +215,15 @@ public class Posit /*: Number()*/ {
 
     private fun fractionBits(sign: Byte, value: Int, regimeLen: Int): Int {
         var fractionLen = NBITS - 1 - regimeLen - ES
-
         //Удаляем лишние нули
         val lsb = leastSignificantBitPosition(value)
         var fractionBits = value shr (lsb - 1)
+
         /*Удаляем hidden бит 1. Маска 1<<(frac_len)-1 - 1 */
+//        println("$fractionBits ${fractionBits and ((1 shl (mostSignificantBitPosition(fractionBits) - 1)) - 1)}")
         fractionBits = fractionBits and ((1 shl (mostSignificantBitPosition(fractionBits) - 1)) - 1)
+//        fractionBits = fractionBits and ((1 shl (mostSignificantBitPosition(fractionBits) - 1)))
+
         return if (sign == 0.toByte()) fractionBits else ((fractionBits.inv() and onesBit(fractionLen)) + 1)
     }
 
@@ -212,7 +243,7 @@ public class Posit /*: Number()*/ {
     private fun leastSignificantBitPosition(value: Int): Int {
         var mask = 1
         var pos = 0
-        while (pos < NBITS - 1) {
+        while (pos < 32 - 1) {
             val newVal = mask or value
 //            ++pos
             if (newVal == value) {
