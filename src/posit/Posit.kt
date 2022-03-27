@@ -1,8 +1,8 @@
 package posit
 
 import java.lang.Float.floatToIntBits
+import kotlin.math.abs
 import kotlin.math.pow
-
 
 private data class RegimeInfo(val regimeLen: Int, val regimeK: Int, val regimeBits: Int)
 private data class ExponentInfo(var exponentLen: Int, var exponent: Int)
@@ -50,7 +50,6 @@ public class Posit /*: Number()*/ {
             return
         }
 
-
         val intRepresentation = floatToIntBits(value)
         signBit = signBit(value)//if ((intRepresentation.toUInt() and INFINITY) == 0U) 0 else 1
 
@@ -65,8 +64,13 @@ public class Posit /*: Number()*/ {
     }
 
     fun x2p(value: Float) {
+        if (value == 0f) {
+            println(0)
+            return
+        }
+
         USEED = 1 shl (1 shl ES) //2^2^es
-        var `val`: Float = value
+        var `val`: Float = abs(value)
 
         if (`val` < 1) {
             southeastQ(value)
@@ -128,13 +132,13 @@ public class Posit /*: Number()*/ {
         var resultPositVal = positVal.toInt()
 //        if (bigger) {
         //If the length of the bits is overflowing
-
         //TODO -1 убрать кажется надо
-        while (resultPositVal > ((1 shl NBITS - 1) - 1)) {
+        while (resultPositVal > onesMask(NBITS - 1)) { //((1 shl NBITS - 1) - 1)
             resultPositVal = resultPositVal shr 1
         }
 //        }
 
+        resultPositVal = if (value < 0) twosComplement(resultPositVal) else resultPositVal
         if (iter == 0) {
             println("\t0^ $resultPositVal ${resultPositVal.toString(2)}")
         } else if (`val` == 1f || `val` == 0f) {
@@ -153,9 +157,15 @@ public class Posit /*: Number()*/ {
                 ES - (leastSignificantBitPosition(exponentInfo.exponent) - 1)
             else ES + fractionInfo.fractionLen  //The state is with fraction
 
+
         val trail = NBITS - 1 - regimeInfo.regimeLen
-        finalVal = shiftNotUsedZeros(finalVal or exponentInfo.exponent shl fractionInfo.fractionLen) shl (trail - shift)
-        finalVal = finalVal or (regimeInfo.regimeBits shl (fractionInfo.fractionLen + exponentInfo.exponentLen))
+//        println((regimeInfo.regimeBits shl (fractionInfo.fractionLen + exponentInfo.exponentLen)))
+        finalVal =
+            shiftNotUsedZeros(finalVal or (exponentInfo.exponent shl fractionInfo.fractionLen)) shl (trail - shift)
+
+
+        finalVal =
+            finalVal or (1 shl (NBITS - 1 - regimeInfo.regimeLen))//(regimeInfo.regimeBits shl (fractionInfo.fractionLen + exponentInfo.exponentLen))
         return finalVal
     }
 
@@ -190,7 +200,7 @@ public class Posit /*: Number()*/ {
         //fraction
         var fractionBits = fractionBits(value, regimeLen, 555)
 
-        println("Posit: r.$regimeLen e.$exponent f.$fractionBits")
+//        println("Posit: r.$regimeLen e.$exponent f.$fractionBits")
 
         //Remained length of bits for exp and fraction
         var expFracBitsLen = NBITS - regimeLen - 1
@@ -214,14 +224,19 @@ public class Posit /*: Number()*/ {
             regimeInfo.regimeLen,
             exponentInfo.exponentLen
         )
+
         //reduce overflow
 //        while (exponentInfo.exponent > ((1 shl exponentInfo.exponentLen) - 1)) {
 //            exponentInfo.exponent = exponentInfo.exponent shr 1
 //        }
         println("r.${regimeInfo.regimeLen} e.${exponentInfo.exponent} f.${fractionInfo.fractionLen}")
         val positVal = constructFinal(regimeInfo, exponentInfo, fractionInfo)
-        println(positVal.toString(2))
-        return
+
+        if (value < 0) {
+            println((twosComplement(positVal)).toString(2))
+        } else {
+            println(positVal.toString(2))
+        }
     }
 
     private fun signBit(value: Int): Byte = if (value > 0) 0 else 1
@@ -248,11 +263,11 @@ public class Posit /*: Number()*/ {
     }
 
     private fun fractionBits(value: Int, regimeLen: Int, exponentLen: Int): FractionInfo {
-        val fractionLen = NBITS - 1 - regimeLen - exponentLen
         //Удаляем лишние нули
         val lsb = leastSignificantBitPosition(value)
         var fractionBits = value shr (lsb - 1)
 
+        val fractionLen = mostSignificantBitPosition(fractionBits) - 1//NBITS - 1 - regimeLen - exponentLen
         /*Удаляем hidden бит 1. Маска 1<<(frac_len)-1 - 1 */
         fractionBits = fractionBits and ((1 shl (mostSignificantBitPosition(fractionBits) - 1)) - 1)
         return FractionInfo(fractionLen, fractionBits.coerceAtLeast(0))
@@ -292,9 +307,10 @@ public class Posit /*: Number()*/ {
         return pos
     }
 
-    //Создает битовый набор из shift единиц
-    private fun onesBit(shift: Int): Int = 1 shl (shift + 1) - 1
+    //Создает битовый набор из len единиц
+    private fun onesMask(len: Int) = (1 shl len) - 1
 
-    private fun twosComplement(bits: Int) = bits.inv() + 1
+    private fun twosComplement(bits: Int) = (onesMask(NBITS - 1) xor bits) + 1 //bits.inv() + 1
+
     //endregion
 }
