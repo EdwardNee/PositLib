@@ -63,6 +63,7 @@ public class Posit /*: Number()*/ {
 //        makePositValue(fractionBits, signBit, exponent)
     }
 
+    //region Posit construction
     fun x2p(value: Float) {
         if (value == 0f) {
             println(0)
@@ -138,7 +139,7 @@ public class Posit /*: Number()*/ {
         }
 //        }
 
-        resultPositVal = if (value < 0) twosComplement(resultPositVal) else resultPositVal
+        resultPositVal = if (value < 0) twosComplement(resultPositVal.toUInt(), NBITS - 1).toInt() else resultPositVal
         if (iter == 0) {
             println("\t0^ $resultPositVal ${resultPositVal.toString(2)}")
         } else if (`val` == 1f || `val` == 0f) {
@@ -233,7 +234,7 @@ public class Posit /*: Number()*/ {
         val positVal = constructFinal(regimeInfo, exponentInfo, fractionInfo)
 
         if (value < 0) {
-            println((twosComplement(positVal)).toString(2))
+            println((twosComplement(positVal.toUInt(), NBITS - 1)).toString(2))
         } else {
             println(positVal.toString(2))
         }
@@ -277,6 +278,56 @@ public class Posit /*: Number()*/ {
         val lsb = leastSignificantBitPosition(value)
         return value shr (lsb - 1)
     }
+    //endregion
+
+    //region Posit decoding
+     fun decodePosit(positValue: UInt) {
+        var value = positValue
+        if (value == 0u)
+            return //0 all the bit types
+        if (value == INFINITY)
+            return
+        //Sign bit
+        val signBit = (value shr (NBITS - 1)) and 1u
+        if (signBit == 1u) {
+            value = twosComplement(value, NBITS)
+        }
+
+        //Regime
+        val regimeSign = ((value shr (NBITS - 2)) and 1u).toInt()
+        val regimeLen =
+            if (regimeSign == 1) {
+                //unset bit (1`s complement)
+                NBITS - (mostSignificantBitPosition(
+                    (twosComplement(
+                        value,
+                        mostSignificantBitPosition(value.toInt())
+                    ) - 1u).toInt()
+                ) - 1) - 1
+            } else {
+                NBITS - (mostSignificantBitPosition(value.toInt()) - 1) - 1
+            }
+        val exponentLen = 0.coerceAtLeast(ES.coerceAtMost(NBITS - 1 - regimeLen))
+        val fractionLen = 0.coerceAtLeast(NBITS - 1 - regimeLen - exponentLen)
+
+        //Get values
+        val regimeK = if(regimeSign == 0) -regimeLen + 1 else regimeLen - 2
+        //Mask with 111.. and ..000 in the end.
+        val exponent = ((onesMask(exponentLen) shl fractionLen).toUInt() and value) shr fractionLen
+
+        val fracMask = (((onesMask(fractionLen)).toUInt() and value) or ((1 shl fractionLen).toUInt())).toInt()
+        val fraction =  fracMask shr (leastSignificantBitPosition(fracMask) - 1)
+
+
+        println("Decoded r.$regimeK e.$exponent f.$fraction")
+        println(getDoubleRepresentation(signBit, regimeK, exponent.toInt(), fraction))
+    }
+
+    fun getDoubleRepresentation(sign: UInt, regimeK: Int, exponent: Int, fraction: Int): Double{
+        val nBits = mostSignificantBitPosition(fraction) - 1
+        return (-1.0).pow(sign.toDouble()) * 2.0.pow(2.0.pow(1.0 * ES) * regimeK + exponent - nBits) * (1.0 * fraction)
+    }
+    //endregion
 
     //region Bit manipulation
     //возвращает позицию most significant bit
@@ -310,7 +361,6 @@ public class Posit /*: Number()*/ {
     //Создает битовый набор из len единиц
     private fun onesMask(len: Int) = (1 shl len) - 1
 
-    private fun twosComplement(bits: Int) = (onesMask(NBITS - 1) xor bits) + 1 //bits.inv() + 1
-
+    private fun twosComplement(bits: UInt, nbits: Int) = (onesMask(nbits).toUInt() xor bits) + 1u // n-1
     //endregion
 }
