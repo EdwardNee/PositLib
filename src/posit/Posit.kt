@@ -33,9 +33,10 @@ public class Posit /*: Number()*/ {
         //endregion
     }
 
-    private constructor(positValue: UInt, boolean: Boolean){
+    private constructor(positValue: UInt, boolean: Boolean) {
         _number = positValue
     }
+
     //Для целых чисел
     constructor(value: Int) {
 //        if (value == 0)
@@ -106,11 +107,6 @@ public class Posit /*: Number()*/ {
         posit1.fraction = resF.first
         posit2.fraction = resF.second
 
-        var estimatedLen = if (scale1 > scale2)
-            mostSignificantBitPosition(posit1.fraction)
-        else
-            mostSignificantBitPosition(posit2.fraction)
-
 
         if (scale1 > scale2) {
             posit1.fraction = posit1.fraction shl (scale1 - scale2)
@@ -118,21 +114,34 @@ public class Posit /*: Number()*/ {
             posit2.fraction = posit2.fraction shl (scale2 - scale1)
         }
 
+        var estimatedLen = if (scale1 > scale2)
+            mostSignificantBitPosition(posit1.fraction)
+        else
+            mostSignificantBitPosition(posit2.fraction)
+
         var fractionNew =
-            ((-1.0).pow(posit1.sign.toDouble()) * posit1.fraction.toDouble() + (-1.0).pow(posit2.fraction.toDouble()) * posit2.fraction.toDouble()).toInt()
+            ((-1.0).pow(posit1.sign.toDouble()) * posit1.fraction.toDouble() + (-1.0).pow(posit2.sign.toDouble()) * posit2.fraction.toDouble()).toInt()
         val signNew = signBit(fractionNew).toInt()
 
-
         val resultLen = mostSignificantBitPosition(fractionNew.toUInt())//ТУТ может быть минус, потестить
+
         scaleNew += (resultLen - estimatedLen)
         //Remove redundant last zeros
         fractionNew = fractionNew shr (leastSignificantBitPosition(fractionNew.toUInt()) - 1)
 
 
-//        println("pos s$signNew s$scaleNew f$fractionNew")
+        println("pos s$signNew s$scaleNew f$fractionNew")
         val res = makePositValue(signNew, scaleNew, fractionNew)
         println("pos ${res}")
         return Posit(res, true)
+    }
+
+    operator fun minus(otherPosit: Posit): Posit {
+        return this + (-otherPosit)
+    }
+
+    operator fun unaryMinus(): Posit {
+        return Posit(twosComplement(_number, NBITS), true)
     }
 
     private fun alignBoth(v1: UInt, v2: UInt): Pair<UInt, UInt> {
@@ -250,7 +259,7 @@ public class Posit /*: Number()*/ {
     }
 
     private fun constructFinal(regimeInfo: RegimeInfo, exponentInfo: ExponentInfo, fractionInfo: FractionInfo): UInt {
-        var finalVal = if(regimeInfo.regimeK >= 0)
+        var finalVal = if (regimeInfo.regimeK >= 0)
             onesMask(regimeInfo.regimeLen - 1) shl (NBITS - regimeInfo.regimeLen)
         else
             1u shl (NBITS - 1 - regimeInfo.regimeLen)
@@ -263,23 +272,27 @@ public class Posit /*: Number()*/ {
 
         val trail = NBITS - 1 - regimeInfo.regimeLen
 
-        var expFrac = shiftNotUsedZeros(fractionInfo.fraction or (exponentInfo.exponent shl fractionInfo.fractionLen).toUInt())
 
-        if(trail < shift){
+
+        var expFrac =
+            shiftNotUsedZeros(fractionInfo.fraction or (exponentInfo.exponent shl fractionInfo.fractionLen).toUInt())
+
+        if (trail < shift) {
             //Getting overflown bits
             val overflown = expFrac and onesMask(shift - trail)
             finalVal = finalVal or (expFrac shr (shift - trail))
 
-            if(overflown == (1u shl (shift - trail - 1))){
-                if(((expFrac shr (shift - trail)) and 1u) == 1u){
+            if (overflown == (1u shl (shift - trail - 1))) {
+                if (((expFrac shr (shift - trail)) and 1u) == 1u) {
                     finalVal += 1u
                 }
             }
-            else{
-                finalVal += 1u
+            else if(overflown > (1u shl (shift - trail - 1))){
+                finalVal++
             }
-        }else{
-            finalVal = expFrac shl (trail - shift)
+
+        } else {
+            finalVal = finalVal or (expFrac shl (trail - shift))
         }
 
         return finalVal
@@ -326,7 +339,7 @@ public class Posit /*: Number()*/ {
 ////        println("\trl: $regimeLen es: $ES fl: $fractionLen")
 //    }
 
-    fun makePositValue(sign: Int, scale: Int, fraction: Int): UInt{
+    fun makePositValue(sign: Int, scale: Int, fraction: Int): UInt {
         val regimeInfo = countRegime(scale)
         //scale % 2^es
         val exponentInfo = ExponentInfo(
@@ -396,7 +409,7 @@ public class Posit /*: Number()*/ {
             var mask = 1u shl (NBITS - ES) + 1
             mask = mask shr (-runningK)
             mask shr (leastSignificantBitPosition(mask) - 1)
-    }
+        }
 
         return regimeBits
     }
