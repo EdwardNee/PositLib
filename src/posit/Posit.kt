@@ -235,6 +235,34 @@ public class Posit /*: Number()*/ {
         val result = makePositValue(posit.sign.toInt(), scaleNew, fractionNew.toInt())
         return Posit(result, true)
     }
+
+    override fun equals(other: Any?): Boolean {
+        val otherPosit: Posit = if (other !is Posit){
+            Posit(other as Float)
+        }else{
+            Posit(other.positChunk, true)
+        }
+
+        return this.positChunk == otherPosit.positChunk
+    }
+
+    private fun signedRepresentation(positValue: UInt): Int{
+        val pV = positValue
+        val signBit = (pV shr (NBITS - 1)) and 1u
+
+        if (signBit == 1u){
+            if(pV != INFINITY){
+                val setBit = (pV or (1u shl (NBITS - 1))) xor (1u shl (NBITS - 1))
+                return -twosComplement(setBit, NBITS).toInt()
+            }
+        }
+
+        return pV.toInt()
+    }
+
+    operator fun compareTo(otherPosit: Posit): Int{
+        return signedRepresentation(this.positChunk).compareTo(signedRepresentation(otherPosit.positChunk))
+    }
     //endregion
 
     //region Posit construction
