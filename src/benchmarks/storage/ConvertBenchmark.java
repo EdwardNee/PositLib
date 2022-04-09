@@ -1,4 +1,4 @@
-package benchmarks;
+package benchmarks.storage;
 
 import org.openjdk.jmh.annotations.*;
 import posit.Posit;
