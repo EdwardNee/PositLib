@@ -1,7 +1,7 @@
 package benchmarks.comparison;
 
 import org.openjdk.jmh.annotations.*;
-import posit.Posit;
+import lib.posit.Posit;
 
 import java.util.concurrent.TimeUnit;
 
@@ -35,7 +35,7 @@ public class CompareBenchmark {
     @Fork(value = 1, warmups = 0)
     @Warmup(iterations = 2, time = 1)
     @Measurement(time = 1000, iterations = 5, timeUnit = TimeUnit.MILLISECONDS)
-    public int timesFloat(){
+    public int compareFloat(){
         return Float.compare(value1, value2);
     }
 }

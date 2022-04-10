@@ -1,7 +1,12 @@
+/**
+ * @author <a href="mailto:eni@edu.hse.ru"> Eduard Ni</a>
+ */
 package benchmarks
 
-
-class BenchmarkRunner{
+/**
+ * Класс для запуска бенчмарков.
+ */
+class BenchmarkRunner {
     companion object {
         @JvmStatic
         fun main(args: Array<String>) {

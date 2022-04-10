@@ -1,7 +1,7 @@
 package benchmarks.storage;
 
 import org.openjdk.jmh.annotations.*;
-import posit.Posit;
+import lib.posit.Posit;
 
 import java.util.concurrent.TimeUnit;
 
