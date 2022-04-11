@@ -4,14 +4,9 @@
 package lib.posit
 
 import lib.helpers.*
-import lib.helpers.ExponentInfo
-import lib.helpers.FractionInfo
-import lib.helpers.RegimeInfo
-import java.lang.Float.floatToIntBits
-import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
-import kotlin.math.pow
+import lib.posit.Posit.Companion.ES
+import lib.posit.Posit.Companion.NBITS
+import kotlin.math.*
 
 /**
  * Реализация представления числа Posit с [ES] = 2, [NBITS] = 32.
@@ -78,15 +73,17 @@ public class Posit : Number, Comparable<Posit> {
      * Конструктор для инициализации [Posit] числа, равного [value].
      */
     constructor(value: Int) {
-        positChunk = value2posit(value.toFloat())
+        positChunk = value2posit(value.toDouble())
     }
 
     /**
      * Конструктор для инициализации [Posit] числа, равного [value].
      */
-    constructor(value: Float) {
+    constructor(value: Double) {
+
         positChunk = value2posit(value)
     }
+
     //endregion
 
     //region Operations
@@ -132,19 +129,20 @@ public class Posit : Number, Comparable<Posit> {
             BitHelper.mostSignificantBitPosition(fraction2Aligned)
 
         var fractionNew =
-            ((-1.0).pow(posit1.sign.toDouble()) * fraction1Aligned.toDouble() + (-1.0).pow(posit2.sign.toDouble()) * fraction2Aligned.toDouble()).toLong()
+            (((-1.0).pow(posit1.sign.toDouble()) * fraction1Aligned.toDouble()).toLong() + ((-1.0).pow(posit2.sign.toDouble()) * fraction2Aligned.toDouble()).toLong())
         val signNew = signBit(fractionNew).toInt()
+
         fractionNew = abs(fractionNew)
 
         val resultLen = BitHelper.mostSignificantBitPosition(fractionNew.toULong())//ТУТ может быть минус, потестить
 
-        println("$signNew $scaleNew $fractionNew")
         scaleNew += (resultLen - estimatedLen)
         //Remove redundant last zeros
         fractionNew = fractionNew shr
                 (BitHelper.leastSignificantBitPosition(fractionNew.toULong()) - 1)
+//        println("$signNew $scaleNew $fractionNew $resultLen")
 
-        val res = makePositValue(signNew, scaleNew, 2)
+        val res = makePositValue(signNew, scaleNew, fractionNew)
         return Posit(res, true)
     }
 
@@ -161,6 +159,8 @@ public class Posit : Number, Comparable<Posit> {
      * @return Возвращает новое число типа [Posit].
      */
     operator fun unaryMinus(): Posit {
+        if(this.positChunk == ZERO)
+            return Posit(ZERO, true)
         return Posit(BitHelper.twosComplement(positChunk, NBITS), true)
     }
 
@@ -216,7 +216,7 @@ public class Posit : Number, Comparable<Posit> {
         scaleNew += (msbNew - msbF1 - msbF2)
 
 
-        val result = makePositValue(signNew.toInt(), scaleNew.toInt(), fractionNew.toInt())
+        val result = makePositValue(signNew.toInt(), scaleNew.toInt(), fractionNew.toLong())
 
         return Posit(result, true)
     }
@@ -226,23 +226,23 @@ public class Posit : Number, Comparable<Posit> {
      * @return Возвращает новое число типа [Posit].
      */
     operator fun div(otherPosit: Posit): Posit {
-        if (this.positChunk == ZERO || this.positChunk == INFINITY) {
-            return this
-        }
-
         if (otherPosit.positChunk == ZERO || this.positChunk == INFINITY ||
             otherPosit.positChunk == INFINITY
         ) {
             return Posit(INFINITY, true) //NaR
         }
 
+        if (this.positChunk == ZERO || this.positChunk == INFINITY) {
+            return this
+        }
+
         val posit2 = decodePosit(otherPosit.positChunk)
 
-        if (posit2.fraction and (posit2.fraction - 1UL) == 0UL) {
-            val neg = BitHelper.twosComplement(otherPosit.positChunk, NBITS)
-            val setBit = (neg or (1UL shl (NBITS - 1))) xor (1UL shl (NBITS - 1))
-            return this * Posit(setBit, true)
-        }
+//        if (posit2.fraction and (posit2.fraction - 1UL) == 0UL) {
+//            val neg = BitHelper.twosComplement(otherPosit.positChunk, NBITS)
+//            val setBit = (neg or (1UL shl (NBITS - 1))) xor (1UL shl (NBITS - 1))
+//            return this * Posit(setBit, true)
+//        }
 
         val posit1 = decodePosit(this.positChunk)
 
@@ -250,8 +250,9 @@ public class Posit : Number, Comparable<Posit> {
         var scaleNew =
             2.0.pow(ES) * (posit1.regimeK - posit2.regimeK) + posit1.exponent.toDouble() - posit2.exponent.toDouble()
         val aligned = alignBoth(posit1.fraction, posit2.fraction)
-        val fraction1Aligned = aligned.first shl (NBITS * 4)
+        val fraction1Aligned = aligned.first shl (NBITS)
         val fraction2Aligned = aligned.second
+
 
         val fractionNew = fraction1Aligned / fraction2Aligned
 
@@ -261,7 +262,7 @@ public class Posit : Number, Comparable<Posit> {
 
         scaleNew -= (msbF1 - msbF2 - msbNew)
 
-        val result = makePositValue(signNew.toInt(), scaleNew.toInt(), fractionNew.toInt())
+        val result = makePositValue(signNew.toInt(), scaleNew.toInt(), fractionNew.toLong())
 
         return Posit(result, true)
     }
@@ -283,22 +284,24 @@ public class Posit : Number, Comparable<Posit> {
             return this
         }
         val posit = decodePosit(this.positChunk)
+//        println(posit)
         var scaleNew = (2.0.pow(ES) * posit.regimeK + posit.exponent.toDouble()).toInt()
-
         var fractionNew = posit.fraction
 
         if (scaleNew >= 0) {
             val fracBitsLen = BitHelper.mostSignificantBitPosition(fractionNew)
+            var tmp = fractionNew.toLong()
 
             if (scaleNew <= fracBitsLen - 1) {
-                fractionNew = fractionNew and (1UL shl (fracBitsLen - 1 - scaleNew)).inv()
+                tmp = tmp and ((1L shl (fracBitsLen - 1 - scaleNew)) - 1).inv()
+                fractionNew = tmp.toULong()
             }
         } else {
             fractionNew = 0u
             scaleNew = 0
         }
 
-        val result = makePositValue(posit.sign.toInt(), scaleNew, fractionNew.toInt())
+        val result = makePositValue(posit.sign.toInt(), scaleNew, fractionNew.toLong())
         return Posit(result, true)
     }
 
@@ -306,18 +309,18 @@ public class Posit : Number, Comparable<Posit> {
      * Возвращает знаковое представления чанка [positValue]. Используется для сравнения чисел.
      * @return Возвращает знаковое представления чанка [positValue].
      */
-    private fun signedRepresentation(positValue: ULong): Int {
+    private fun signedRepresentation(positValue: ULong): Long {
         val pV = positValue
         val signBit = (pV shr (NBITS - 1)) and 1u
 
         if (signBit == 1UL) {
             if (pV != INFINITY) {
                 val setBit = (pV or (1UL shl (NBITS - 1))) xor (1UL shl (NBITS - 1))
-                return -BitHelper.twosComplement(setBit, NBITS).toInt()
+                return -BitHelper.twosComplement(setBit, NBITS).toLong()
             }
         }
 
-        return pV.toInt()
+        return pV.toLong()
     }
 
     //endregion
@@ -326,17 +329,17 @@ public class Posit : Number, Comparable<Posit> {
     /**
      * Метод, заполняющий чанк [positChunk], преобразуя [value] в правильный для хранения [Posit] формат.
      */
-    private fun value2posit(value: Float): ULong {
-        if (value == 0f) {
+    private fun value2posit(value: Double): ULong {
+        if (value == 0.0) {
             return 0UL
         }
 
-        if (value.isInfinite()){
+        if (value.isInfinite()) {
             return INFINITY
         }
 
         USEED = 1 shl (1 shl ES) //2^2^es
-        var `val`: Float = abs(value)
+        var `val`: Double = abs(value)
 
         if (`val` < 1) {
             return southeastQ(value)
@@ -395,15 +398,47 @@ public class Posit : Number, Comparable<Posit> {
             BitHelper.twosComplement(resultPositVal, NBITS)
         else
             resultPositVal
-//        if (iter == 0) {
-//            println("\t0^ $resultPositVal ${resultPositVal.toString(2)}")
-//        }
-//        if (`val` == 1f) {
-//            println("\tv^ ${resultPositVal - 1UL} ${(resultPositVal - 1UL).toString(2)}")
-//        } else { //0f
-//            println("\t+^ ${resultPositVal + 1UL} ${(resultPositVal + 1UL).toString(2)}")
-//        }
 
+//            if(value > 0){
+//                if(iter == 0)
+//                    println("\t0^ $resultPositVal ${resultPositVal.toString(2)}")
+//
+//                if (`val` == 1.0) {
+//                    println("\tv^ ${resultPositVal - 1UL} ${(resultPositVal - 1UL).toString(2)}")
+//                } else { //0f
+//                    println("\t+^ ${resultPositVal + 1UL} ${(resultPositVal + 1UL).toString(2)}")
+//                }
+//            }else{
+//                if(iter == 0)
+//                    println("\t0^ $resultPositVal ${resultPositVal.toString(2)}")
+//
+//                if (`val` == 1.0) {
+//                    println("\tv^ ${resultPositVal + 1UL} ${(resultPositVal - 1UL).toString(2)}")
+//                } else { //0f
+//                    println("\t+^ ${resultPositVal - 1UL} ${(resultPositVal + 1UL).toString(2)}")
+//                }
+//            }
+
+
+        resultPositVal = if (value > 0) {
+            if (iter == 0)
+                resultPositVal
+
+            if (`val` == 1.0) {
+                resultPositVal - 1UL
+            } else { //0f
+                resultPositVal + (positVal.toULong() and 1UL)
+            }
+        } else {
+            if (iter == 0)
+                resultPositVal
+
+            if (`val` == 1.0) {
+                resultPositVal + 1UL
+            } else { //0f
+                resultPositVal - (positVal.toULong() and 1UL)
+            }
+        }
 //        return if (iter == 0) {
 //            resultPositVal
 //        } else if (`val` == 1f) {
@@ -440,19 +475,22 @@ public class Posit : Number, Comparable<Posit> {
         val expFrac =
             BitHelper.shiftNotUsedZeros(
                 fractionInfo.fraction or
-                        (exponentInfo.exponent shl fractionInfo.fractionLen).toULong()
+                        (exponentInfo.exponent.toULong() shl fractionInfo.fractionLen)
             )
 
+
         if (trail < shift) {
+
             //Getting overflown bits
             val overflown = expFrac and BitHelper.onesMask(shift - trail)
             finalVal = finalVal or (expFrac shr (shift - trail))
 
             if (overflown == (1UL shl (shift - trail - 1))) {
                 if (((expFrac shr (shift - trail)) and 1UL) == 1UL) {
+
                     finalVal += 1u
                 }
-            } else if (overflown > (1u shl (shift - trail - 1))) {
+            } else if (overflown > (1UL shl (shift - trail - 1))) {
                 finalVal++
             }
         } else {
@@ -462,35 +500,36 @@ public class Posit : Number, Comparable<Posit> {
         return finalVal
     }
 
+
     /**
      * Подсчитывает масштабирующий фактор.
      */
-    private fun countScale(value: Float): ULong {
-        val intRepresentation = java.lang.Double.doubleToRawLongBits(value.toDouble()).toULong()
+    private fun countScale(value: Double): ULong {
+        val intRepresentation = java.lang.Double.doubleToLongBits(value).toULong()
         return (((intRepresentation and ((1UL shl 63) - 1UL)) shr 52) - 1023UL)
     }
 
     /**
      * Подсчитывает биты режима.
      */
-    private fun countRegime(scale: Int): RegimeInfo {
-        val regimeK: Int = scale shr ES
+    private fun countRegime(scale: Long): RegimeInfo {
+        val regimeK: Long = scale shr ES
         //Конструируем число.
-        val regimeBits = regimeBits(regimeK)
+        val regimeBits = regimeBits(regimeK.toInt())
         //Длина режима - биты единиц и ноль или биты нулей и единица.
         val regimeLen = if (regimeK >= 0) regimeK + 2 else -regimeK + 1
 
-        return RegimeInfo(regimeLen, regimeK, regimeBits)
+        return RegimeInfo(regimeLen.toInt(), regimeK.toInt(), regimeBits)
     }
 
     /**
      * Конструирует число Posit с уже разобранными [sign], [scale], [fraction].
      */
-    private fun makePositValue(sign: Int, scale: Int, fraction: Int): ULong {
-        if (fraction == 0) {
+    private fun makePositValue(sign: Int, scale: Int, fraction: Long): ULong {
+        if (fraction == 0L) {
             return 0UL
         }
-        val regimeInfo = countRegime(scale)
+        val regimeInfo = countRegime(scale.toLong())
         //scale % 2^es
         val exponentInfo = ExponentInfo(
             ES.coerceAtMost(NBITS - 1 - regimeInfo.regimeLen).coerceAtLeast(0),
@@ -500,6 +539,8 @@ public class Posit : Number, Comparable<Posit> {
         val fractionInfo = fractionBits(
             fraction.toULong()
         )
+
+//        println("$regimeInfo ${exponentInfo} $fractionInfo")
 
         val positVal = constructFinalPositChunk(regimeInfo, exponentInfo, fractionInfo)
 
@@ -514,25 +555,25 @@ public class Posit : Number, Comparable<Posit> {
      * Работает с входным [value], он находится в юго-восточном квадранте круга Posit.
      * @return Возвращает заполненыый чанк для Posit.
      */
-    private fun southeastQ(value: Float): ULong {
-        val intRepresentation = java.lang.Double.doubleToRawLongBits(value.toDouble()).toULong()
+    private fun southeastQ(value: Double): ULong {
+        val intRepresentation = java.lang.Double.doubleToRawLongBits(value).toULong()
+
         val exponentScale = countScale(value)
-        val regimeInfo = countRegime(exponentScale.toInt())
+        val regimeInfo = countRegime(exponentScale.toLong())
         val exponentInfo = ExponentInfo(
             ES.coerceAtMost(NBITS - 1 - regimeInfo.regimeLen).coerceAtLeast(0),
             exponentScale.toInt() and ((1 shl ES) - 1)
         )
 
         val fractionInfo = fractionBits(
-            (1UL shl 52) or (intRepresentation.toULong() and ((1UL shl 52) - 1UL))
+            (1UL shl 52) or (intRepresentation and ((1UL shl 52) - 1UL))
         )
-
-//        println("$exponentInfo, $regimeInfo, $fractionInfo")
 
         val positVal = constructFinalPositChunk(regimeInfo, exponentInfo, fractionInfo)
 
+
         return if (value < 0) {
-            BitHelper.twosComplement(positVal, NBITS - 1)
+            BitHelper.twosComplement(positVal, NBITS)
         } else {
             positVal
         }
@@ -544,6 +585,10 @@ public class Posit : Number, Comparable<Posit> {
      */
     private fun signBit(value: Int): Byte = if (value > 0) 0 else 1
 
+    /**
+     * Возвращает бит знака.
+     * @return Возвращает бит знака.
+     */
     private fun signBit(value: Long): Byte = if (value > 0L) 0 else 1
 
     /**
@@ -590,6 +635,9 @@ public class Posit : Number, Comparable<Posit> {
     //endregion
 
     //region Posit decoding
+    /**
+     * Декодирование числа [positValue] на составные.
+     */
     private fun decodePosit(positValue: ULong): PositRepr {
         var value = positValue
         if (value == 0UL) {
@@ -621,14 +669,17 @@ public class Posit : Number, Comparable<Posit> {
             }
         val exponentLen = 0.coerceAtLeast(ES.coerceAtMost(NBITS - 1 - regimeLen))
         val fractionLen = 0.coerceAtLeast(NBITS - 1 - regimeLen - exponentLen)
-
         //Get values
         val regimeK = if (regimeSign == 0) -regimeLen + 1 else regimeLen - 2
         //Mask with 111.. and ..000 in the end.
         val exponent = (((BitHelper.onesMask(exponentLen) shl fractionLen) and value)
                 shr fractionLen) shl (ES - exponentLen)
 
-        val fracMask = (((BitHelper.onesMask(fractionLen)) and value) or ((1UL shl fractionLen)))
+        val fracMask = setb(
+            exb(value, fractionLen),
+            fractionLen
+        ) //(((BitHelper.onesMask(fractionLen)) and value) or ((1UL shl fractionLen)))
+//        println("HERE< ${exb(value, fractionLen)} ${setb(exb(value, fractionLen), fractionLen)}")
         val fraction = fracMask shr (BitHelper.leastSignificantBitPosition(fracMask) - 1)
 
         return PositRepr(
@@ -639,6 +690,15 @@ public class Posit : Number, Comparable<Posit> {
         )
     }
 
+    fun exb(value: ULong, fracLen: Int): ULong {
+        return value and BitHelper.onesMask(fracLen)
+    }
+
+    fun setb(uLong: ULong, i: Int) = uLong or ((1 shl i).toULong())
+
+    /**
+     * Представляет число в формате double.
+     */
     private fun getDoubleRepresentation(sign: ULong, regimeK: Int, exponent: Int, fraction: ULong): Double {
         val nBits = BitHelper.mostSignificantBitPosition(fraction) - 1
         return (-1.0).pow(sign.toDouble()) * 2.0.pow(
@@ -654,12 +714,13 @@ public class Posit : Number, Comparable<Posit> {
     }
 
     override operator fun compareTo(other: Posit): Int {
+        println("S ${this.positChunk} ${other.positChunk}")
         return signedRepresentation(this.positChunk).compareTo(signedRepresentation(other.positChunk))
     }
 
     override fun equals(other: Any?): Boolean {
         val otherPosit: Posit = if (other !is Posit) {
-            Posit(other as Float)
+            Posit(other as Double)
         } else {
             Posit(other.positChunk, true)
         }

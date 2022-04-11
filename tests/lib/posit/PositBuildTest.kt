@@ -5,19 +5,22 @@ import io.kotest.data.forAll
 import io.kotest.data.row
 import io.kotest.matchers.shouldBe
 
+/**
+ * Тесты для инициализации числа Posit.
+ */
 class PositBuildTest : StringSpec() {
     init {
         "Using float constructor test" {
             forAll(
-                row(0f, 0UL),
-                row(1f, 1073741824UL),
-                row(0.003456f, 260700220UL),
-                row(-0.000136f, 4175612302UL),
-                row(1.21312312f, 1102346720UL),
-                row(113f, 1796210688UL),
-                row(-1321.11f, 2339074540UL),
-                row(Float.POSITIVE_INFINITY, Posit.INFINITY),
-                row(Float.NEGATIVE_INFINITY, Posit.INFINITY)
+                row(0.0, 0UL),
+                row(1.0, 1073741824UL),
+                row(0.003456, 260700220UL),
+                row(-0.000136, 4175612302UL),
+                row(1.21312312, 1102346725UL),
+                row(113.0, 1796210688UL),
+                row(-1321.11, 2339074539UL),
+                row(Double.POSITIVE_INFINITY, Posit.INFINITY),
+                row(Double.NEGATIVE_INFINITY, Posit.INFINITY)
             ) { value, positChunk ->
                 Posit(value).positChunk shouldBe positChunk
             }

@@ -7,6 +7,9 @@ import io.kotest.data.blocking.forAll
 import io.kotest.data.row
 import io.kotest.matchers.shouldBe
 
+/**
+ * Класс для тестирования операций с битовыми манипуляциями.
+ */
 class BitHelperTest : StringSpec() {
     init {
         "testing MSB counting function" {

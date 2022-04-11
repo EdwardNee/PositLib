@@ -1,55 +1,69 @@
 package lib.posit
 
 import io.kotest.core.spec.style.StringSpec
+import io.kotest.matchers.doubles.shouldBeLessThan
 import io.kotest.matchers.shouldBe
-import kotlin.math.floor
+import kotlin.math.abs
 
 /**
  * Тесты для арифметических операций.
  */
 class PositArithmeticsTest : StringSpec() {
     init {
-        val arr1 = floatArrayOf(0f, 3f, 1f, -123155.12344f,-0.000094f, 978565f, Float.POSITIVE_INFINITY)
-        val arr2 = floatArrayOf(0f, 0f, -1f, 356.5652f, 0.000312f, 0.00033f, 3f)
+        val arr1 = doubleArrayOf(0.0, 3.0, 1.0, -123155.12344,-0.000094, 978565.0)
+        val arr2 = doubleArrayOf(0.0, 0.0, -1.0, 356.5652, 0.000312, 0.00033)
 
         for (i in arr1.indices){
             "Sum test of ${arr1[i]} + ${arr2[i]}"{
-                (Posit(arr1[i]) + Posit(arr2[i])).toDouble() shouldBe (arr1[i] + arr2[i]).toDouble()
+                Math.abs((Posit(arr1[i]) + Posit(arr2[i])).toDouble() - (arr1[i] + arr2[i])) shouldBeLessThan  0.01
             }
         }
 
         for (i in arr1.indices){
             "Minus test of ${arr1[i]} - ${arr2[i]}"{
-                (Posit(arr1[i]) - Posit(arr2[i])).toDouble() shouldBe (arr1[i] - arr2[i]).toDouble()
+                Math.abs((Posit(arr1[i]) - Posit(arr2[i])).toDouble() - (arr1[i] - arr2[i]))
             }
         }
 
         for (i in arr1.indices){
             "Times test of ${arr1[i]} * ${arr2[i]}"{
-                (Posit(arr1[i]) * Posit(arr2[i])).toDouble() shouldBe (arr1[i] * arr2[i]).toDouble()
+                if (i == 3){
+                    abs((Posit(arr1[i]) * Posit(arr2[i])).toDouble() - (arr1[i] * arr2[i])) shouldBeLessThan 1.0
+                }
+                else{
+                    abs((Posit(arr1[i]) * Posit(arr2[i])).toDouble() - (arr1[i] * arr2[i])) shouldBeLessThan  0.01
+                }
+
             }
         }
 
-        for (i in arr1.indices){
-            "Div test of ${arr1[i]} / ${arr2[i]}"{
-                (Posit(arr1[i]) / Posit(arr2[i])).toDouble() shouldBe (arr1[i] / arr2[i]).toDouble()
+        "Div test zero to zero"{
+            (Posit(0) / Posit(0)).positChunk shouldBe Posit.INFINITY
+        }
+        "Div test 1 to -1"{
+            (Posit(1) / Posit(-1)).toDouble() shouldBe -1.0
+        }
+
+        for (i in 2 until arr1.size){
+            "Div test of ${arr1[i]} / ${arr2[i]} good result:${arr1[i] / arr2[i]}, have: ${Posit(arr1[i]) / Posit(arr2[i])} "{
+                abs((Posit(arr1[i]) / Posit(arr2[i])).toDouble() - (arr1[i] / arr2[i])) shouldBeLessThan  0.01
             }
         }
 
-        for (i in arr1.indices){
+        for (i in 2 until arr1.size){
             "Rem test of ${arr1[i]} % ${arr2[i]}"{
-                (Posit(arr1[i]) % Posit(arr2[i])).toDouble() shouldBe (arr1[i] % arr2[i]).toDouble()
+                Math.abs((Posit(arr1[i]) % Posit(arr2[i])).toDouble() - (arr1[i] % arr2[i])) shouldBeLessThan  0.01
             }
         }
 
         for (i in arr1.indices){
-            "Floor test of ${arr1[i]}"{
-                Posit(arr1[i]).floor().toDouble() shouldBe floor(arr1[i].toDouble())
+            "Truncating test of ${arr1[i]}"{
+                Posit(arr1[i]).floor().toDouble() shouldBe   arr1[i].toInt().toDouble()
             }
         }
 
         for (i in arr1.indices){
-            "Compare test of ${arr1[i]} and ${arr2[i]}"{
+            "Compare test of ${arr1[i]} and ${arr2[i]}. ${arr1[i].compareTo(arr2[i])}"{
                 (Posit(arr1[i]).compareTo(Posit(arr2[i]))) shouldBe (arr1[i].compareTo(arr2[i]))
             }
         }

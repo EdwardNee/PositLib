@@ -8,6 +8,9 @@ package benchmarks
  */
 class BenchmarkRunner {
     companion object {
+        /**
+         * Функция запуска бенчмарков.
+         */
         @JvmStatic
         fun main(args: Array<String>) {
             org.openjdk.jmh.Main.main(args)
