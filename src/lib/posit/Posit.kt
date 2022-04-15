@@ -56,7 +56,7 @@ public class Posit : Number, Comparable<Posit> {
     /**
      * Чанк для хранения представления всех битов [Posit].
      */
-    var positChunk: ULong = ZERO
+    public var positChunk: ULong = ZERO
         private set
 
     //region constructors
@@ -155,7 +155,7 @@ public class Posit : Number, Comparable<Posit> {
      * @return Возвращает новое число типа [Posit].
      */
     operator fun unaryMinus(): Posit {
-        if(this.positChunk == ZERO)
+        if (this.positChunk == ZERO)
             return Posit(ZERO, true)
         return Posit(BitHelper.twosComplement(positChunk, NBITS), true)
     }
@@ -653,7 +653,6 @@ public class Posit : Number, Comparable<Posit> {
     }
 
 
-
     /**
      * Представляет число в формате double.
      */
@@ -686,6 +685,10 @@ public class Posit : Number, Comparable<Posit> {
     }
 
     override fun toByte(): Byte {
+        if(positChunk == INFINITY){
+            return INFINITY.toInt().toByte()
+        }
+
         val decoded = decodePosit(positChunk)
         return getDoubleRepresentation(
             decoded.sign,
@@ -698,6 +701,10 @@ public class Posit : Number, Comparable<Posit> {
     }
 
     override fun toChar(): Char {
+        if(positChunk == INFINITY){
+            return INFINITY.toInt().toChar()
+        }
+
         val decoded = decodePosit(positChunk)
         return getDoubleRepresentation(
             decoded.sign,
@@ -710,6 +717,10 @@ public class Posit : Number, Comparable<Posit> {
     }
 
     override fun toDouble(): Double {
+        if(positChunk == INFINITY){
+            return INFINITY.toDouble()
+        }
+
         val decoded = decodePosit(positChunk)
         return getDoubleRepresentation(
             decoded.sign,
@@ -720,6 +731,10 @@ public class Posit : Number, Comparable<Posit> {
     }
 
     override fun toFloat(): Float {
+        if(positChunk == INFINITY){
+            return INFINITY.toFloat()
+        }
+
         val decoded = decodePosit(positChunk)
         return getDoubleRepresentation(
             decoded.sign,
@@ -730,6 +745,10 @@ public class Posit : Number, Comparable<Posit> {
     }
 
     override fun toInt(): Int {
+        if(positChunk == INFINITY){
+            return Int.MAX_VALUE
+        }
+
         val decoded = decodePosit(positChunk)
         return getDoubleRepresentation(
             decoded.sign,
@@ -740,6 +759,10 @@ public class Posit : Number, Comparable<Posit> {
     }
 
     override fun toLong(): Long {
+        if(positChunk == INFINITY){
+            return INFINITY.toLong()
+        }
+
         val decoded = decodePosit(positChunk)
         return getDoubleRepresentation(
             decoded.sign,
@@ -750,6 +773,10 @@ public class Posit : Number, Comparable<Posit> {
     }
 
     override fun toShort(): Short {
+        if(positChunk == INFINITY){
+            return INFINITY.toShort()
+        }
+
         val decoded = decodePosit(positChunk)
         return getDoubleRepresentation(
             decoded.sign,
@@ -761,6 +788,10 @@ public class Posit : Number, Comparable<Posit> {
     }
 
     override fun toString(): String {
+        if(positChunk == INFINITY){
+            return "INFINITY: $INFINITY"
+        }
+
         val decoded = decodePosit(positChunk)
         val doubleRep = getDoubleRepresentation(
             decoded.sign,
